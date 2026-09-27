@@ -59,6 +59,62 @@ Not affiliated with Apple Inc.
 
 ---
 
+## `appshots` — App Store screenshots
+
+So your agent writes the headlines, order and devices of your App Store
+screenshots while you watch them change in the
+[appshots](https://appshots.seracreativo.com) editor.
+
+**Claude Code**
+
+```bash
+claude mcp add --transport http appshots https://mcps.seracreativo.com/appshots/mcp
+```
+
+**Codex**
+
+```bash
+codex mcp add appshots --url https://mcps.seracreativo.com/appshots/mcp
+```
+
+**Cursor · Windsurf · VS Code** — in your MCP config:
+
+```json
+{ "appshots": { "url": "https://mcps.seracreativo.com/appshots/mcp" } }
+```
+
+Then open the editor, press **Claude → Connect** and give your agent the
+session code.
+
+<details>
+<summary>Tools it gives your agent</summary>
+
+| Tool | What it does |
+|---|---|
+| `appshots_read` | The open project — sections, headlines, export sizes — with a preview of every screenshot as the editor draws it |
+| `appshots_edit` | A list of changes — text, order, devices, composition, theme — applied all or none, live in the editor |
+
+</details>
+
+<details>
+<summary>How it works</summary>
+
+The project never leaves the browser. The editor tab long-polls
+`/appshots/session/<code>/next`; a tool call drops its command there and
+waits on `/reply/<id>`. Both live in Redis and expire within a minute. The
+editor applies each change with its own rules — devices, templates, the ten
+screenshot limit — so the server knows nothing about App Store.
+
+The session code is the only key: 20 random characters, minted by the tab and
+dead when it disconnects. Screenshots are added in the editor, by dragging:
+a URL-based server cannot read files from your disk.
+
+Needs `REDIS_URL` (or `KV_URL`).
+
+</details>
+
+---
+
 ## How this is built
 
 **No authentication, on purpose.** What is served here is public, so there is

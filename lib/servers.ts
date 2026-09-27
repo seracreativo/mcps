@@ -15,6 +15,10 @@ export type Server = {
   /** `null` if the repository is private: a link to a 404 is worse than none. */
   repo: string | null;
   tools: { name: string; what: Texto }[];
+  /** The section under the tools: where the data comes from, or how it works. */
+  about: { title: Texto; body: Texto };
+  /** What is and isn't stored, and who is behind it. */
+  footer: Texto;
 };
 
 export const SERVERS: Server[] = [
@@ -49,6 +53,53 @@ export const SERVERS: Server[] = [
         },
       },
     ],
+    about: {
+      title: { en: "Where the data comes from", es: "De dónde salen los datos" },
+      body: {
+        en: "developer.apple.com is a DocC app fed by JSON: every documentation page has a twin under /tutorials/data. They are queried live, cached for a day. They are not an official API and Apple has changed them before — so if this ever stops answering, that is why and not your network.",
+        es: "developer.apple.com es una app DocC que se alimenta de JSON: cada página de documentación tiene su gemela en /tutorials/data. Se consultan en vivo, con un día de caché. No son una API oficial y Apple los ha cambiado antes, así que si un día deja de responder, es eso y no tu red.",
+      },
+    },
+    footer: {
+      en: "No authentication: Apple's documentation is public and nothing about you is stored here. A personal project, not affiliated with Apple Inc.",
+      es: "Sin autenticación: la documentación de Apple es pública y aquí no se guarda nada de nadie. Proyecto personal, sin relación con Apple Inc.",
+    },
+  },
+  {
+    slug: "appshots",
+    name: { en: "App Store screenshots", es: "Capturas para App Store" },
+    tagline: {
+      en: "So your agent writes the headlines, order and devices of your App Store screenshots while you watch them change in the appshots editor.",
+      es: "Para que tu agente escriba los titulares, el orden y los dispositivos de tus capturas de App Store mientras las ves cambiar en el editor de appshots.",
+    },
+    repo: null,
+    tools: [
+      {
+        name: "appshots_read",
+        what: {
+          en: "The open project: sections, headlines and export sizes, with a preview of every screenshot as the editor draws it",
+          es: "El proyecto abierto: secciones, titulares y medidas de exportación, con una miniatura de cada captura tal como la pinta el editor",
+        },
+      },
+      {
+        name: "appshots_edit",
+        what: {
+          en: "A list of changes — text, order, devices, composition, theme — applied all or none, live in the editor",
+          es: "Una lista de cambios —textos, orden, dispositivos, composición, tema— que se aplica entera o nada, en directo en el editor",
+        },
+      },
+    ],
+    about: {
+      title: { en: "How it works", es: "Cómo funciona" },
+      body: {
+        en: "Open appshots.seracreativo.com, press Claude → Connect and hand your agent the session code. The project never leaves your browser: this server only carries each change to your tab and the answer back, and forgets both within seconds. Screenshots are added in the editor by dragging them in.",
+        es: "Abre appshots.seracreativo.com, pulsa Claude → Conectar y pásale a tu agente el código de sesión. El proyecto no sale de tu navegador: este servidor solo lleva cada cambio a tu pestaña y la respuesta de vuelta, y olvida las dos en segundos. Las capturas se añaden en el editor arrastrándolas.",
+      },
+    },
+    footer: {
+      en: "No authentication: the session code is the key, and it dies when you disconnect or close the tab. Nothing is stored. A personal project, not affiliated with Apple Inc.",
+      es: "Sin autenticación: el código de sesión es la llave, y muere al desconectar o cerrar la pestaña. No se guarda nada. Proyecto personal, sin relación con Apple Inc.",
+    },
   },
 ];
 
