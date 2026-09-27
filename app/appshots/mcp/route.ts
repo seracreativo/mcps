@@ -2,12 +2,13 @@
 //
 // It holds no project. Each tool call is carried to the user's open editor tab
 // through the relay, applied there with the editor's own rules, and the tab's
-// answer comes back as the result.
+// answer comes back as the result. The user sees every change as it happens.
 
 import { z } from "zod";
 import { createMcpHandler } from "mcp-handler";
 import { HOST } from "@/lib/servers";
 import { NoReply, NotListening, dispatch } from "../relay";
+import { edit } from "../schema";
 
 export const maxDuration = 60;
 
@@ -16,8 +17,9 @@ type Content = { type: "text"; text: string } | { type: "image"; data: string; m
 type Reply =
   | {
       ok: true;
-      project: unknown;
+      project?: unknown;
       previews?: { set: number; slide: number; mimeType: string; data: string }[];
+      file?: { name: string; bytes: number };
     }
   | { ok: false; error: string };
 
@@ -52,91 +54,18 @@ async function relaying(code: string, command: unknown, render: (reply: Reply & 
 
 const json = (value: unknown): Content => ({ type: "text", text: JSON.stringify(value, null, 2) });
 
-const slideText = z.object({
-  headline: z.string(),
-  subheadline: z.string().optional(),
-  template: z.string().optional().describe("Only if this screenshot leaves its section's composition"),
-  screenshot: z.string().optional().describe("Id returned by the upload; without it, an empty slot the user fills"),
-});
-
-const position = z.number().int().min(1);
-const set = position.describe("Section position, from 1");
-const slide = position.describe("Screenshot position within its section, from 1");
-
-const textStyle = z.object({
-  size: z.number().optional().describe("Pixels at the section's export height, like the editor shows; range in style.sizeRange"),
-  weight: z.number().int().optional().describe("One of options.weights"),
-  align: z.enum(["left", "center", "right"]).optional(),
-  lineHeight: z.number().optional(),
-});
-
-const edit = z.discriminatedUnion("op", [
-  z.object({ op: z.literal("set_text"), set, slide, headline: z.string().optional(), subheadline: z.string().optional() }),
-  z.object({ op: z.literal("add_slides"), set, slides: z.array(slideText).min(1), at: position.optional() }),
-  z.object({ op: z.literal("set_screenshot"), set, slide, screenshot: z.string().describe("Id returned by the upload") }),
-  z.object({ op: z.literal("remove_slide"), set, slide }),
-  z.object({ op: z.literal("move_slide"), set, from: position, to: position }),
-  z.object({
-    op: z.literal("set_template"),
-    set,
-    slide: slide.optional(),
-    template: z.string().nullable().describe("A template id; null returns a screenshot to its section's"),
-  }),
-  z.object({
-    op: z.literal("set_device"),
-    set,
-    device: z.string().optional(),
-    orientation: z.enum(["portrait", "landscape"]).optional(),
-  }),
-  z.object({
-    op: z.literal("add_set"),
-    family: z.enum(["iphone", "ipad", "mac", "watch"]),
-    device: z.string().optional(),
-    orientation: z.enum(["portrait", "landscape"]).optional(),
-    template: z.string().optional(),
-    slides: z.array(slideText).optional(),
-  }),
-  z.object({ op: z.literal("remove_set"), set }),
-  z.object({ op: z.literal("set_theme"), theme: z.string() }),
-  z.object({
-    op: z.literal("set_style"),
-    set,
-    headline: textStyle.optional(),
-    subheadline: textStyle.optional(),
-    spacing: z
-      .object({ margin: z.number().optional(), gap: z.number().optional(), textGap: z.number().optional() })
-      .optional()
-      .describe("margin and gap are fractions of the canvas height; textGap is in subheadline sizes"),
-    rotation: z.number().optional().describe("Device tilt in degrees"),
-    shadow: z.boolean().optional(),
-    frame: z.enum(["auto", "portrait", "landscape"]).optional().describe("How the device is drawn; auto follows the screenshot"),
-    reset: z.boolean().optional().describe("Back to what the template says, before applying the rest"),
-  }),
-  z.object({ op: z.literal("set_font"), font: z.string().describe("One of options.fonts") }),
-  z.object({
-    op: z.literal("set_colors"),
-    background: z.string().optional(),
-    text: z.string().optional(),
-    frame: z.string().optional(),
-  }).describe("Hex colors, #rrggbb"),
-  z.object({
-    op: z.literal("set_app"),
-    name: z.string().optional(),
-    subtitle: z.string().optional(),
-    developer: z.string().optional(),
-  }),
-]);
+const UPLOAD = `${HOST}/appshots/session/<session>/upload`;
 
 const handler = createMcpHandler(
   (server) => {
     server.tool(
       "appshots_read",
       "Read the App Store screenshot project open in the user's appshots editor: " +
-        "sections by device, each screenshot's headline, export sizes, and the valid " +
-        "devices, templates and themes under `options`. Returns a preview image of " +
-        "every screenshot as the editor draws it, so you can see the app's screens " +
-        "and check how your headlines fit. Read it before editing: the user may have " +
-        "changed things by hand.",
+        "sections by device, each screenshot's headline and notes, the style of each " +
+        "section, the App Store listing, and under `options` every valid id and range. " +
+        "Returns a preview image of every screenshot as the editor draws it, so you can " +
+        "see the screens, check how headlines fit and where notes landed. Read it before " +
+        "editing: the user may have changed things by hand.",
       { session },
       async ({ session: code }) =>
         relaying(code, { kind: "read" }, ({ project, previews = [] }) => [
@@ -150,26 +79,45 @@ const handler = createMcpHandler(
 
     server.tool(
       "appshots_edit",
-      "Apply a list of changes to the project open in the user's appshots editor, " +
-        "all or none; the user sees them live. Positions start at 1 and refer to the " +
-        "state before each change in the list, so when removing or moving several, go " +
-        "from last to first. A good headline says what that screen shows, in a few " +
-        "words (about two lines).\n\n" +
-        "Style is per section and shared by all its screenshots: sizes, weights, " +
-        "alignment, spacing, tilt, shadow. Font and colors are per project. Valid ids " +
-        "and ranges come from `options` and each section's `style` in appshots_read; " +
-        "out of range is an error, not a clamp.\n\n" +
-        "Images: with a shell, upload each PNG or JPEG first — " +
-        `\`curl -s --data-binary @shot.png ${HOST}/appshots/session/<session>/upload\` — ` +
-        "which answers {screenshot, w, h}; pass that `screenshot` id in add_slides or " +
-        "set_screenshot. Without a shell, add slides without `screenshot` and ask " +
-        "the user to drag the images into those slots.",
+      "Apply a list of changes to the project open in the user's appshots editor, all or " +
+        "none; the user sees them live. Anything the editor does by hand: screenshots, " +
+        "headlines, order, sections and devices, composition, style, font, colors, notes " +
+        "over a screenshot, the App Store listing, starting over. Positions start at 1 and " +
+        "refer to the state before each change in the list, so when removing or moving " +
+        "several, go from last to first. Out of range is an error, not a clamp.\n\n" +
+        "Headlines say what that screen shows, in a few words. A note quotes something " +
+        "visible on the screen behind it — a figure, a streak, a label — rather than " +
+        "advertising: it is evidence the app does what it says.\n\n" +
+        `Images (screenshots, the app icon, media notes): with a shell, upload a PNG, JPEG, ` +
+        `WebP or SVG first — \`curl -s --data-binary @file.png ${UPLOAD}\` — which answers ` +
+        "{screenshot, w, h}; pass that id where an image goes. Without a shell, add slides " +
+        "without `screenshot` and ask the user to drag the images in.",
       { session, edits: z.array(edit).min(1) },
       async ({ session: code, edits }) =>
         relaying(code, { kind: "edit", edits }, ({ project }) => [json(project)]),
     );
+
+    server.tool(
+      "appshots_export",
+      "Export from the user's editor; the file downloads in their browser, exactly as the " +
+        "editor's own buttons do. `zip`: every section, at the sizes App Store Connect " +
+        "accepts. `png`: one screenshot. `social`: an image of the listing for social " +
+        "media, in one of options.socialFormats. `project`: the .appshot file, to keep " +
+        "working later.",
+      {
+        session,
+        what: z.enum(["zip", "png", "social", "project"]),
+        set: z.number().int().min(1).optional().describe("png and social; default 1"),
+        slide: z.number().int().min(1).optional().describe("png; default 1"),
+        format: z.string().optional().describe("social; default 'wide'"),
+      },
+      async ({ session: code, ...command }) =>
+        relaying(code, { kind: "export", ...command }, ({ file }) => [
+          json({ downloaded: file?.name, bytes: file?.bytes }),
+        ]),
+    );
   },
-  { serverInfo: { name: "appshots", version: "1.0.0" } },
+  { serverInfo: { name: "appshots", version: "1.1.0" } },
   { basePath: "/appshots" },
 );
 

@@ -84,8 +84,15 @@ export const SERVERS: Server[] = [
       {
         name: "appshots_edit",
         what: {
-          en: "A list of changes — screenshots, text, order, devices, composition, style, font, colors — applied all or none, live in the editor",
-          es: "Una lista de cambios —capturas, textos, orden, dispositivos, composición, estilo, fuente, colores— que se aplica entera o nada, en directo en el editor",
+          en: "Everything the editor does by hand — screenshots, headlines, order, devices, composition, style, font, colors, notes, the listing — applied all or none, live",
+          es: "Todo lo que el editor hace a mano —capturas, titulares, orden, dispositivos, composición, estilo, fuente, colores, notas, la ficha— entero o nada, en directo",
+        },
+      },
+      {
+        name: "appshots_export",
+        what: {
+          en: "Download the ZIP for App Store Connect, one PNG, the social image or the .appshot, in the user's browser",
+          es: "Descargar el ZIP para App Store Connect, un PNG, la imagen para redes o el .appshot, en el navegador del usuario",
         },
       },
     ],

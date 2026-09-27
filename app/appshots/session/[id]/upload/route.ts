@@ -6,6 +6,7 @@
 // appshots_edit, plus the image's size — comes back once the tab has them.
 
 import { randomBytes } from "node:crypto";
+import { imageType } from "../../../image";
 import { NoReply, NotListening, dispatch, listening, stash, take, validSession } from "../../../relay";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +14,6 @@ export const maxDuration = 60;
 
 /** Vercel rejects bodies over 4.5 MB before this code runs; this says why in words. */
 const MAX_BYTES = 4_400_000;
-
-const PNG = [0x89, 0x50, 0x4e, 0x47];
-const JPEG = [0xff, 0xd8, 0xff];
-const starts = (bytes: Buffer, magic: number[]) => magic.every((b, i) => bytes[i] === b);
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
 
@@ -32,8 +29,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         "sips -s format jpeg -s formatOptions 90 shot.png --out shot.jpg",
     );
   }
-  if (!starts(bytes, PNG) && !starts(bytes, JPEG)) {
-    return fail(415, "Only PNG or JPEG. Send the raw file with --data-binary @path, not a form.");
+  if (!imageType(bytes)) {
+    return fail(415, "Only PNG, JPEG, WebP or SVG. Send the raw file with --data-binary @path, not a form.");
   }
 
   // Before storing anything: with no tab to collect it, the image would sit

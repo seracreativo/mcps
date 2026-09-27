@@ -1,6 +1,7 @@
 // The tab collects an uploaded screenshot. Once: the relay forgets it on read.
 
 import { cors, preflight } from "../../../../cors";
+import { imageType } from "../../../../image";
 import { take, validSession } from "../../../../relay";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,8 @@ export async function GET(
   const bytes = await take(id, file);
   if (!bytes) return new Response("gone", cors(request, { status: 404 }));
 
-  const type = bytes[0] === 0x89 ? "image/png" : "image/jpeg";
+  // The type matters: an SVG blob without it does not draw.
+  const type = imageType(bytes) ?? "application/octet-stream";
   return new Response(new Uint8Array(bytes), cors(request, { headers: { "Content-Type": type } }));
 }
 
