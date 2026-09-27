@@ -50,18 +50,25 @@ function redis() {
 }
 
 /** The tab's side: the next command, or null when the poll times out. */
-export async function listen(session: string, gone: AbortSignal): Promise<string | null> {
+export async function listen(session: string): Promise<string | null> {
   const client = await redis();
-  await client.set(key(session, "seen"), "1", { EX: SEEN_SECONDS });
+  const poll = randomUUID();
+  await client
+    .multi()
+    .set(key(session, "seen"), "1", { EX: SEEN_SECONDS })
+    .set(key(session, "poll"), poll, { EX: SEEN_SECONDS })
+    .exec();
 
   // Blocking commands need their own connection, or they stall everyone else's.
   const popped = await client.blPop(commandOptions({ isolated: true }), key(session, "inbox"), POLL_SECONDS);
   if (!popped) return null;
 
-  // A reloaded or closed tab leaves its poll waiting here for up to 20 s. What
-  // it pops would be written to nobody: it goes back to the head of the queue
-  // for the tab's next poll.
-  if (gone.aborted) {
+  // A reloaded tab leaves its old poll waiting here for up to 20 s, and Redis
+  // hands the command to the oldest waiter — which answers nobody. Vercel does
+  // not tell the function its client left, so the tell is a newer poll: if
+  // one started, this one is stale and the command goes back to the head of
+  // the queue, where the newer poll is already waiting.
+  if ((await client.get(key(session, "poll"))) !== poll) {
     await client.lPush(key(session, "inbox"), popped.element);
     return null;
   }
