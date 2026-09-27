@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const { id } = await params;
   if (!validSession(id)) return new Response("bad session", cors(request, { status: 400 }));
 
-  const command = await listen(id);
+  const command = await listen(id, request.signal);
   return command
     ? new Response(command, cors(request, { headers: { "Content-Type": "application/json" } }))
     : new Response(null, cors(request, { status: 204 }));

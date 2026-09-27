@@ -50,13 +50,22 @@ function redis() {
 }
 
 /** The tab's side: the next command, or null when the poll times out. */
-export async function listen(session: string): Promise<string | null> {
+export async function listen(session: string, gone: AbortSignal): Promise<string | null> {
   const client = await redis();
   await client.set(key(session, "seen"), "1", { EX: SEEN_SECONDS });
 
   // Blocking commands need their own connection, or they stall everyone else's.
   const popped = await client.blPop(commandOptions({ isolated: true }), key(session, "inbox"), POLL_SECONDS);
-  return popped?.element ?? null;
+  if (!popped) return null;
+
+  // A reloaded or closed tab leaves its poll waiting here for up to 20 s. What
+  // it pops would be written to nobody: it goes back to the head of the queue
+  // for the tab's next poll.
+  if (gone.aborted) {
+    await client.lPush(key(session, "inbox"), popped.element);
+    return null;
+  }
+  return popped.element;
 }
 
 /** The tab's side: the answer to one command. */
@@ -65,12 +74,34 @@ export async function answer(session: string, command: string, body: string) {
   await client.multi().rPush(key(session, `reply:${command}`), body).expire(key(session, `reply:${command}`), REPLY_SECONDS).exec();
 }
 
+/**
+ * An uploaded screenshot, held only until the tab collects it. The upload
+ * route waits for that before answering, so at most a few seconds' worth of
+ * images sit in Redis at once.
+ */
+export async function stash(session: string, file: string, bytes: Buffer) {
+  const client = await redis();
+  await client.set(key(session, `file:${file}`), bytes, { EX: REPLY_SECONDS });
+}
+
+/** Read once: the second request for the same file finds nothing. */
+export async function take(session: string, file: string): Promise<Buffer | null> {
+  const client = await redis();
+  return client.getDel(commandOptions({ returnBuffers: true }), key(session, `file:${file}`));
+}
+
+/** Whether a tab has polled recently enough to be there. */
+export async function listening(session: string) {
+  const client = await redis();
+  return (await client.exists(key(session, "seen"))) === 1;
+}
+
 /** The MCP's side: hand the tab a command and wait for what it says. */
 export async function dispatch(session: string, command: unknown): Promise<unknown> {
   const client = await redis();
 
   // Checked first so a missing tab is said in words, not after a 40-second wait.
-  if (!(await client.exists(key(session, "seen")))) throw new NotListening();
+  if (!(await listening(session))) throw new NotListening();
 
   const id = randomUUID();
   await client

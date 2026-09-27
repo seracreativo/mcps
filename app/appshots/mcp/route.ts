@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { createMcpHandler } from "mcp-handler";
+import { HOST } from "@/lib/servers";
 import { NoReply, NotListening, dispatch } from "../relay";
 
 export const maxDuration = 60;
@@ -55,15 +56,24 @@ const slideText = z.object({
   headline: z.string(),
   subheadline: z.string().optional(),
   template: z.string().optional().describe("Only if this screenshot leaves its section's composition"),
+  screenshot: z.string().optional().describe("Id returned by the upload; without it, an empty slot the user fills"),
 });
 
 const position = z.number().int().min(1);
 const set = position.describe("Section position, from 1");
 const slide = position.describe("Screenshot position within its section, from 1");
 
+const textStyle = z.object({
+  size: z.number().optional().describe("Pixels at the section's export height, like the editor shows; range in style.sizeRange"),
+  weight: z.number().int().optional().describe("One of options.weights"),
+  align: z.enum(["left", "center", "right"]).optional(),
+  lineHeight: z.number().optional(),
+});
+
 const edit = z.discriminatedUnion("op", [
   z.object({ op: z.literal("set_text"), set, slide, headline: z.string().optional(), subheadline: z.string().optional() }),
   z.object({ op: z.literal("add_slides"), set, slides: z.array(slideText).min(1), at: position.optional() }),
+  z.object({ op: z.literal("set_screenshot"), set, slide, screenshot: z.string().describe("Id returned by the upload") }),
   z.object({ op: z.literal("remove_slide"), set, slide }),
   z.object({ op: z.literal("move_slide"), set, from: position, to: position }),
   z.object({
@@ -88,6 +98,27 @@ const edit = z.discriminatedUnion("op", [
   }),
   z.object({ op: z.literal("remove_set"), set }),
   z.object({ op: z.literal("set_theme"), theme: z.string() }),
+  z.object({
+    op: z.literal("set_style"),
+    set,
+    headline: textStyle.optional(),
+    subheadline: textStyle.optional(),
+    spacing: z
+      .object({ margin: z.number().optional(), gap: z.number().optional(), textGap: z.number().optional() })
+      .optional()
+      .describe("margin and gap are fractions of the canvas height; textGap is in subheadline sizes"),
+    rotation: z.number().optional().describe("Device tilt in degrees"),
+    shadow: z.boolean().optional(),
+    frame: z.enum(["auto", "portrait", "landscape"]).optional().describe("How the device is drawn; auto follows the screenshot"),
+    reset: z.boolean().optional().describe("Back to what the template says, before applying the rest"),
+  }),
+  z.object({ op: z.literal("set_font"), font: z.string().describe("One of options.fonts") }),
+  z.object({
+    op: z.literal("set_colors"),
+    background: z.string().optional(),
+    text: z.string().optional(),
+    frame: z.string().optional(),
+  }).describe("Hex colors, #rrggbb"),
   z.object({
     op: z.literal("set_app"),
     name: z.string().optional(),
@@ -123,9 +154,16 @@ const handler = createMcpHandler(
         "all or none; the user sees them live. Positions start at 1 and refer to the " +
         "state before each change in the list, so when removing or moving several, go " +
         "from last to first. A good headline says what that screen shows, in a few " +
-        "words (about two lines). You cannot add images: screenshots you add are empty " +
-        "slots the user fills by dragging an image in. Ids for devices, templates and " +
-        "themes come from `options` in appshots_read.",
+        "words (about two lines).\n\n" +
+        "Style is per section and shared by all its screenshots: sizes, weights, " +
+        "alignment, spacing, tilt, shadow. Font and colors are per project. Valid ids " +
+        "and ranges come from `options` and each section's `style` in appshots_read; " +
+        "out of range is an error, not a clamp.\n\n" +
+        "Images: with a shell, upload each PNG or JPEG first — " +
+        `\`curl -s --data-binary @shot.png ${HOST}/appshots/session/<session>/upload\` — ` +
+        "which answers {screenshot, w, h}; pass that `screenshot` id in add_slides or " +
+        "set_screenshot. Without a shell, add slides without `screenshot` and ask " +
+        "the user to drag the images into those slots.",
       { session, edits: z.array(edit).min(1) },
       async ({ session: code, edits }) =>
         relaying(code, { kind: "edit", edits }, ({ project }) => [json(project)]),

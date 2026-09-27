@@ -92,7 +92,7 @@ session code.
 | Tool | What it does |
 |---|---|
 | `appshots_read` | The open project — sections, headlines, export sizes — with a preview of every screenshot as the editor draws it |
-| `appshots_edit` | A list of changes — text, order, devices, composition, theme — applied all or none, live in the editor |
+| `appshots_edit` | A list of changes — screenshots, text, order, devices, composition, style, font, colors — applied all or none, live in the editor |
 
 </details>
 
@@ -106,8 +106,11 @@ editor applies each change with its own rules — devices, templates, the ten
 screenshot limit — so the server knows nothing about App Store.
 
 The session code is the only key: 20 random characters, minted by the tab and
-dead when it disconnects. Screenshots are added in the editor, by dragging:
-a URL-based server cannot read files from your disk.
+dead when it disconnects. A URL-based server cannot read files from your
+disk, so an agent with a shell uploads each screenshot to
+`/appshots/session/<code>/upload`; the upload returns once the tab has
+collected it, and the relay forgets it on the spot. Without a shell, you drag
+them into the editor.
 
 Needs `REDIS_URL` (or `KV_URL`).
 

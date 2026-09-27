@@ -84,16 +84,16 @@ export const SERVERS: Server[] = [
       {
         name: "appshots_edit",
         what: {
-          en: "A list of changes — text, order, devices, composition, theme — applied all or none, live in the editor",
-          es: "Una lista de cambios —textos, orden, dispositivos, composición, tema— que se aplica entera o nada, en directo en el editor",
+          en: "A list of changes — screenshots, text, order, devices, composition, style, font, colors — applied all or none, live in the editor",
+          es: "Una lista de cambios —capturas, textos, orden, dispositivos, composición, estilo, fuente, colores— que se aplica entera o nada, en directo en el editor",
         },
       },
     ],
     about: {
       title: { en: "How it works", es: "Cómo funciona" },
       body: {
-        en: "Open appshots.seracreativo.com, press Claude → Connect and hand your agent the session code. The project never leaves your browser: this server only carries each change to your tab and the answer back, and forgets both within seconds. Screenshots are added in the editor by dragging them in.",
-        es: "Abre appshots.seracreativo.com, pulsa Claude → Conectar y pásale a tu agente el código de sesión. El proyecto no sale de tu navegador: este servidor solo lleva cada cambio a tu pestaña y la respuesta de vuelta, y olvida las dos en segundos. Las capturas se añaden en el editor arrastrándolas.",
+        en: "Open appshots.seracreativo.com, press Claude → Connect and hand your agent the session code. The project never leaves your browser: this server only carries each change to your tab and the answer back, and forgets both within seconds. An agent with a shell uploads screenshots itself; without one, you drag them in.",
+        es: "Abre appshots.seracreativo.com, pulsa Claude → Conectar y pásale a tu agente el código de sesión. El proyecto no sale de tu navegador: este servidor solo lleva cada cambio a tu pestaña y la respuesta de vuelta, y olvida las dos en segundos. Un agente con terminal sube las capturas él mismo; si no, las arrastras tú.",
       },
     },
     footer: {
