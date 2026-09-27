@@ -93,6 +93,7 @@ session code.
 |---|---|
 | `appshots_read` | The open project — sections, headlines, export sizes — with a preview of every screenshot as the editor draws it |
 | `appshots_edit` | Everything the editor does by hand — screenshots, headlines, order, devices, composition, style, font, colors, notes, the listing — applied all or none, live |
+| `appshots_save` | Write the project to the `.appshot` open in the editor, as ⌘S does, once the browser may write to it |
 | `appshots_export` | Download the ZIP for App Store Connect, one PNG, the social image or the `.appshot`, in the user's browser |
 
 </details>

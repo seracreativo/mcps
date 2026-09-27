@@ -89,6 +89,13 @@ export const SERVERS: Server[] = [
         },
       },
       {
+        name: "appshots_save",
+        what: {
+          en: "Write the project to the .appshot file open in the editor, as ⌘S does, once the browser may write to it",
+          es: "Escribir el proyecto en el .appshot abierto en el editor, como ⌘S, cuando el navegador ya puede escribir en él",
+        },
+      },
+      {
         name: "appshots_export",
         what: {
           en: "Download the ZIP for App Store Connect, one PNG, the social image or the .appshot, in the user's browser",

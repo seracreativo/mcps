@@ -21,7 +21,16 @@ const SESSION = /^[abcdefghjkmnpqrstuvwxyz2-9]{20}$/;
 
 export const validSession = (id: string) => SESSION.test(id);
 
+/**
+ * The protocol the editor tab must speak. A tab opened before a deploy keeps
+ * running the old code; handed a command it half understands, it would apply
+ * part of it and answer ok. Must match PROTOCOL in the editor's
+ * src/lib/remote/protocol.ts.
+ */
+export const PROTOCOL = 2;
+
 export class NotListening extends Error {}
+export class Outdated extends Error {}
 export class NoReply extends Error {}
 
 const key = (session: string, part: string) => `appshots:${session}:${part}`;
@@ -50,12 +59,13 @@ function redis() {
 }
 
 /** The tab's side: the next command, or null when the poll times out. */
-export async function listen(session: string): Promise<string | null> {
+export async function listen(session: string, version: number): Promise<string | null> {
   const client = await redis();
   const poll = randomUUID();
   await client
     .multi()
-    .set(key(session, "seen"), "1", { EX: SEEN_SECONDS })
+    // The tab's protocol, not just a flag: dispatch refuses an older one.
+    .set(key(session, "seen"), String(version), { EX: SEEN_SECONDS })
     .set(key(session, "poll"), poll, { EX: SEEN_SECONDS })
     .exec();
 
@@ -97,18 +107,23 @@ export async function take(session: string, file: string): Promise<Buffer | null
   return client.getDel(commandOptions({ returnBuffers: true }), key(session, `file:${file}`));
 }
 
-/** Whether a tab has polled recently enough to be there. */
+/**
+ * Whether a tab is there and speaks this protocol. Tabs from before
+ * versioning polled without one and count as 0.
+ */
 export async function listening(session: string) {
   const client = await redis();
-  return (await client.exists(key(session, "seen"))) === 1;
+  const seen = await client.get(key(session, "seen"));
+  if (seen === null) throw new NotListening();
+  if ((Number(seen) || 0) < PROTOCOL) throw new Outdated();
 }
 
 /** The MCP's side: hand the tab a command and wait for what it says. */
 export async function dispatch(session: string, command: unknown): Promise<unknown> {
   const client = await redis();
 
-  // Checked first so a missing tab is said in words, not after a 40-second wait.
-  if (!(await listening(session))) throw new NotListening();
+  // Checked first so a missing or stale tab is said in words, not after a 40-second wait.
+  await listening(session);
 
   const id = randomUUID();
   await client

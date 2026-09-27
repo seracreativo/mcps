@@ -5,6 +5,12 @@
 
 import { z } from "zod";
 
+/**
+ * Strict: an unknown field is an error naming it. By default zod drops it,
+ * so a misspelt `descripcion` would vanish and the call would still succeed.
+ */
+export const strict = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
+
 const position = z.number().int().min(1);
 const set = position.describe("Section position, from 1");
 const slide = position.describe("Screenshot position within its section, from 1");
@@ -12,14 +18,14 @@ const unit = z.number().min(0).max(1);
 const orientation = z.enum(["portrait", "landscape"]);
 const upload = z.string().describe("Id returned by the upload endpoint");
 
-const slideInput = z.object({
+const slideInput = strict({
   headline: z.string(),
   subheadline: z.string().optional(),
   template: z.string().optional().describe("Only if this screenshot leaves its section's composition"),
   screenshot: upload.optional().describe("Without it, an empty slot the user fills by dragging"),
 });
 
-const textStyle = z.object({
+const textStyle = strict({
   size: z.number().optional().describe("Pixels at the section's export height, as the editor shows; range in style.sizeRange"),
   weight: z.number().int().optional().describe("One of options.weights"),
   align: z.enum(["left", "center", "right"]).optional(),
@@ -33,7 +39,7 @@ const note = {
   icon: z.string().optional().describe("One of options.noteIcons"),
   x: unit.optional().describe("0–1 across the whole canvas; for an arrow, where it points"),
   y: unit.optional(),
-  source: z.object({ x: unit, y: unit }).optional().describe("zoom: what it magnifies; arrow: where it starts"),
+  source: strict({ x: unit, y: unit }).optional().describe("zoom: what it magnifies; arrow: where it starts"),
   scale: z.number().optional().describe("zoom magnification"),
   shape: z.enum(["circle", "rect"]).optional().describe("zoom"),
   ratio: z.number().optional().describe("Width over height: rectangular zoom, highlight"),
@@ -44,19 +50,19 @@ const note = {
 
 export const edit = z.discriminatedUnion("op", [
   // Screenshots and sections
-  z.object({ op: z.literal("set_text"), set, slide, headline: z.string().optional(), subheadline: z.string().optional() }),
-  z.object({ op: z.literal("add_slides"), set, slides: z.array(slideInput).min(1), at: position.optional() }),
-  z.object({ op: z.literal("set_screenshot"), set, slide, screenshot: upload }),
-  z.object({ op: z.literal("remove_slide"), set, slide }),
-  z.object({ op: z.literal("move_slide"), set, from: position, to: position }),
-  z.object({
+  strict({ op: z.literal("set_text"), set, slide, headline: z.string().optional(), subheadline: z.string().optional() }),
+  strict({ op: z.literal("add_slides"), set, slides: z.array(slideInput).min(1), at: position.optional() }),
+  strict({ op: z.literal("set_screenshot"), set, slide, screenshot: upload }),
+  strict({ op: z.literal("remove_slide"), set, slide }),
+  strict({ op: z.literal("move_slide"), set, from: position, to: position }),
+  strict({
     op: z.literal("set_template"),
     set,
     slide: slide.optional(),
     template: z.string().nullable().describe("A template id; null returns a screenshot to its section's"),
   }),
-  z.object({ op: z.literal("set_device"), set, device: z.string().optional(), orientation: orientation.optional() }),
-  z.object({
+  strict({ op: z.literal("set_device"), set, device: z.string().optional(), orientation: orientation.optional() }),
+  strict({
     op: z.literal("add_set"),
     family: z.enum(["iphone", "ipad", "mac", "watch"]),
     device: z.string().optional(),
@@ -64,16 +70,16 @@ export const edit = z.discriminatedUnion("op", [
     template: z.string().optional(),
     slides: z.array(slideInput).optional(),
   }),
-  z.object({ op: z.literal("remove_set"), set }),
-  z.object({
+  strict({ op: z.literal("remove_set"), set }),
+  strict({
     op: z.literal("reset_project"),
     keepDesign: z.boolean().optional().describe("Empty the screenshots but keep sections and design; without it, a new project"),
   }),
-  z.object({ op: z.literal("select"), set, slide: slide.optional() }).describe("Moves the user's view; changes nothing"),
+  strict({ op: z.literal("select"), set, slide: slide.optional() }).describe("Moves the user's view; changes nothing"),
 
   // Look
-  z.object({ op: z.literal("set_theme"), theme: z.string() }),
-  z.object({
+  strict({ op: z.literal("set_theme"), theme: z.string() }),
+  strict({
     op: z.literal("set_style"),
     set,
     headline: textStyle.optional(),
@@ -87,18 +93,18 @@ export const edit = z.discriminatedUnion("op", [
     frame: z.enum(["auto", "portrait", "landscape"]).optional().describe("How the device is drawn; auto follows the screenshot"),
     reset: z.boolean().optional().describe("Back to what the template says, before applying the rest"),
   }),
-  z.object({ op: z.literal("set_font"), font: z.string().describe("One of options.fonts") }),
+  strict({ op: z.literal("set_font"), font: z.string().describe("One of options.fonts") }),
   z
     .object({ op: z.literal("set_colors"), background: z.string().optional(), text: z.string().optional(), frame: z.string().optional() })
     .describe("#rrggbb"),
 
   // Notes over a screenshot
-  z.object({ op: z.literal("add_note"), set, slide, ...note }),
-  z.object({ op: z.literal("update_note"), set, slide, note: position.describe("Note position, from 1"), ...note }),
-  z.object({ op: z.literal("remove_note"), set, slide, note: position }),
+  strict({ op: z.literal("add_note"), set, slide, ...note }),
+  strict({ op: z.literal("update_note"), set, slide, note: position.describe("Note position, from 1"), ...note }),
+  strict({ op: z.literal("remove_note"), set, slide, note: position }),
 
   // The App Store listing the editor simulates
-  z.object({
+  strict({
     op: z.literal("set_app"),
     name: z.string().optional(),
     subtitle: z.string().optional(),

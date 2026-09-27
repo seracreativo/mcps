@@ -7,7 +7,7 @@
 
 import { randomBytes } from "node:crypto";
 import { imageType } from "../../../image";
-import { NoReply, NotListening, dispatch, listening, stash, take, validSession } from "../../../relay";
+import { NoReply, NotListening, Outdated, dispatch, listening, stash, take, validSession } from "../../../relay";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -16,6 +16,8 @@ export const maxDuration = 60;
 const MAX_BYTES = 4_400_000;
 
 const fail = (status: number, error: string) => Response.json({ error }, { status });
+
+const OUTDATED = "The editor tab runs an older version. Ask the user to reload it; the session and project are kept.";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,7 +37,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // Before storing anything: with no tab to collect it, the image would sit
   // in Redis until it expired.
-  if (!(await listening(id))) return fail(409, `No editor is listening with session ${id}.`);
+  try {
+    await listening(id);
+  } catch (error) {
+    if (error instanceof Outdated) return fail(409, OUTDATED);
+    return fail(409, `No editor is listening with session ${id}.`);
+  }
 
   const file = randomBytes(9).toString("base64url");
 
@@ -52,6 +59,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // Not collected: it goes now rather than when it expires.
     await take(id, file);
     if (error instanceof NotListening) return fail(409, `No editor is listening with session ${id}.`);
+    if (error instanceof Outdated) return fail(409, OUTDATED);
     if (error instanceof NoReply) return fail(504, "The editor did not collect the image in time.");
     throw error;
   }
